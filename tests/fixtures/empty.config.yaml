@@ -1,0 +1,10 @@
+ritual_version: 0.1.0
+
+paths:
+  prd: docs/PRD.md
+
+prefixes: {}
+
+gates:
+  format:
+    cmd: "pnpm format:check"

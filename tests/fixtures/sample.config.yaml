@@ -1,0 +1,58 @@
+ritual_version: 0.1.0
+
+paths:
+  prd: docs/PRD.md
+  masterplan: MASTERPLAN.md
+
+git:
+  main_branch: main
+
+prefixes:
+  FE:
+    name: Frontend
+    ux: true
+    gates: [format, lint, typecheck, test, build]
+  BE:
+    name: Backend
+    ux: false
+    gates: [format, lint, typecheck, test]
+    pre_build_plan_gate: false
+  INF:
+    name: Infra
+    ux: false
+    gates: [format, lint, task_specific]
+    pre_build_plan_gate: true
+
+gates:
+  format:
+    cmd: "pnpm format:check"
+    light_eligible: false
+  lint:
+    cmd: "pnpm lint"
+    light_eligible: false
+  typecheck:
+    cmd: "pnpm typecheck"
+    light_eligible: true
+  test:
+    cmd: "pnpm test"
+    light_eligible: true
+  build:
+    cmd: "pnpm build"
+    light_eligible: true
+  task_specific:
+    by_prefix:
+      INF: "make migrate-check"
+
+reviewer:
+  rules_file: .claude/ritual/reviewer.project.md
+  non_negotiables:
+    - id: auth-isolation
+      title: User identity isolation
+      applies_to: [BE, FE]
+      severity: blocker
+      summary: Never leak one user's data to another.
+    - id: secrets-in-client
+      title: No service-role secrets in client
+      applies_to: [FE]
+      severity: blocker
+      summary: Service-role keys server-side only.
