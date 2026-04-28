@@ -3,7 +3,7 @@
 A portable, opinionated **task-execution ritual for Claude Code projects**: slash commands, sidecar state, gated quality checks, and a human-in-the-loop walkthrough. Packaged so any new repo can adopt the discipline in two commands.
 
 ```bash
-git clone https://github.com/jerryneoneo/claude-the-builder.git ~/code/claude-the-builder
+git clone https://github.com/totalnike90/claude-the-builder.git ~/code/claude-the-builder
 cd <your-project>
 bash ~/code/claude-the-builder/install.sh
 # then, inside Claude Code:
@@ -46,8 +46,6 @@ Most AI-assisted coding workflows fall apart on the same things: untracked work,
 - **Follow-up triage register.** Every reviewer suggestion gets a disposition: resolved, promoted, folded, or dropped.
 - **Trailers required.** Every commit carries `Task: <ID>` so `git log` is queryable forever.
 
-The ritual is extracted from the [SALLY MVP](https://github.com/jerryneoneo/sally-mvp) where it matured over ~140 tasks. The universal core is here; project-specific decisions stay in the project.
-
 ---
 
 ## How `/plan-init` works
@@ -64,6 +62,98 @@ The ritual is extracted from the [SALLY MVP](https://github.com/jerryneoneo/sall
 5. On `y`: writes `MASTERPLAN.md`, populates `prefixes:` in `ritual.config.yaml`, generates `.claude/ritual/reviewer.project.md`, creates per-task `.taskstate/<ID>.json` sidecars, and commits one `chore: scaffold masterplan from <PATH>` commit.
 
 Until `/plan-init` runs, all task-picking commands (`/plan-next`, `/build`, `/auto`, etc.) stop with: *"Run `/plan-init <PRD-path>` first."*
+
+---
+
+## Orchestrators
+
+The seven core commands above run the ritual one task at a time, manually. Six **orchestrators** cover everything else: automation, parallelism, live-iteration shortcuts, audit, and follow-up reconciliation. None of them are required — the ritual works fine without them — but each removes specific friction once you outgrow the manual loop.
+
+### `/auto [<ID>] [--continue] [--chain]` — drive a single task end-to-end
+
+Runs `/build → /walk → /check → /review → /ship` for one task without you typing each step. Auto-fixes failed gates and reviewer findings within bounded retry budgets (default 3 retries on `/check`, 2 on `/review`, ≤20-line auto-fix diffs). Pauses only at human gates: `/walk` for UX prefixes, and `/ship` Step 7.5 if out-of-scope follow-ups need disposition.
+
+```bash
+/auto FE-1                 # one task end-to-end
+/auto                      # picks the next eligible task itself
+/auto --continue           # resumes the most recent in-flight task
+/auto FE-1 --chain         # after FE-1 ships, picks the next eligible and continues
+```
+
+When to use: green-path tasks where you want to spend cycles reviewing the diff, not typing commands. Skip when you expect manual intervention or the task spans many surfaces.
+
+Auto-fix discipline: any code-mutating fix after `walked` reverts the sidecar to `built` and re-runs `/walk` so the operator's approval always matches what ships. Budget exhaustion stalls the task; you escalate to manual `/check`.
+
+### `/batch <ID1> <ID2> [...] [--limit N] [--phase=build|gates]` — parallel ritual
+
+Runs `/build` (then optionally `/check + /review`) in parallel across multiple tasks, in two waves bracketing the serial walk gate. Wave 1 dispatches `/build` in parallel worktrees; you walk each task serially (auto-skipped for non-UX prefixes); wave 2 dispatches `/check + /review` in parallel.
+
+```bash
+/batch FE-1 FE-2 BE-3                     # full two-phase batch
+/batch FE-1 FE-2 BE-3 --phase=build       # just the build wave
+/batch FE-1 FE-2 BE-3 --phase=gates       # just the gates wave (after walks)
+/batch FE-1 FE-2 BE-3 --limit 2           # cap concurrent worktrees
+```
+
+When to use: a backlog of small independent tasks that share no files. Skip when tasks have overlapping surfaces (collisions), or when one task's output unblocks another (use `/auto --chain` instead).
+
+`/ship` stays serial and human-gated — `/batch` does not ship for you.
+
+### `/blitz [--i-know]` — session-level bypass for live iteration
+
+Bypasses `/walk` and `/review` for an entire session. You iterate on a `blitz/<slug>` branch, run cheap gates only (format + lint + typecheck — no tests, no build, no review subagent), and at land time the session lays down one squash commit per task ID directly on `main`. The 1:1 commit-to-revert invariant is preserved.
+
+```bash
+/blitz                     # start a blitz session
+# ...iterate, commit per task...
+/ship blitz <slug>         # land all tasks as separate squash commits
+```
+
+When to use: rapid prototyping, experimenting against a dev server, or focused multi-feature sessions where the operator personally tests every change in-browser. The audit trail records every blitzed task as `status: blitzed` so the bypass is visible in BUILDLOG.
+
+`--i-know` is required when the session touches risky surfaces (migrations, infra files, or any path listed in `blitz.risky_surfaces` in `ritual.config.yaml`). It's an explicit opt-in so foot-guns are loud.
+
+### `/patch <TASK-ID>` — fast-path for trivial changes
+
+Skips worktree creation and the reviewer subagent for prefixes flagged with `fast_path: true` in `ritual.config.yaml`. The change lands directly via a single squash commit. Suitable for one-line copy fixes, dependency bumps, or config tweaks where the diff is obviously safe.
+
+```bash
+/patch SC-12               # only valid for prefixes with fast_path: true
+```
+
+When to use: trivial changes you'd otherwise feel silly cycling through `/build → /walk → /check → /review → /ship`. Skip the moment the change touches more than a few lines or affects user-facing behavior.
+
+Each prefix's `fast_path_forbidden_paths` blocks the fast-path when a forbidden path is touched (e.g., migrations on a SC-* prefix that's otherwise fast-path-eligible).
+
+### `/triage <TASK-ID> | --all` — reconcile shipped follow-ups
+
+Walks a shipped task's BUILDLOG `Follow-ups:` bullets and ensures each has a disposition (`resolved`, `promoted`, `folded`, or `dropped`) recorded in the sidecar's `follow_ups[]` array. `/ship` already runs Step 7.5 triage at land — `/triage` is for retroactive cleanup when bullets accumulated unprocessed (e.g., during a `/blitz` session).
+
+```bash
+/triage FE-1               # reconcile a single shipped task
+/triage --all              # backfill every shipped task with unregistered bullets
+```
+
+When to use: after `/plan-next` warns about unregistered follow-ups, or when migrating from a project that wasn't using the disposition register. The script is idempotent — re-running on a fully-triaged task is a no-op.
+
+### `/doctor [--fix]` — state-drift audit
+
+Cross-checks every ritual surface (MASTERPLAN, sidecars across main and every active worktree, `git worktree list`, branch refs, recent `git log`, `git status`) for drift. Reports findings grouped by severity. Read-only by default.
+
+```bash
+/doctor                    # human-readable audit
+/doctor --json             # machine-readable findings
+/doctor --fix              # interactive repair (each fix prompts y/n)
+```
+
+When to use: weekly hygiene, after a power loss or session crash, or when something feels "off" (a worktree that shouldn't exist, a sidecar status that doesn't match git, a stranded branch). Common findings:
+
+- `untracked-sidecar` — a sidecar in `.taskstate/` not staged in git
+- `stranded-inflight` — worktree at `reviewed` but main sidecar still `todo` (a `/ship` that didn't complete)
+- `dirty-product-code-on-main` — uncommitted changes on `main` from outside the ritual
+- `multi-attempt-walk` — tasks needing ≥3 walk attempts (signals UX or tooling friction)
+
+The `--fix` flag is interactive: every repair is prompt-confirmed so the auditor never silently rewrites state.
 
 ---
 
@@ -219,7 +309,7 @@ Yes. Drop your custom `.md` command files into `.claude/commands/` directly (not
 `bash <claude-the-builder>/uninstall.sh` from your project root. It removes `.claude/ritual/`, the symlinks, and the ritual block from `CLAUDE.md` and `.claude/settings.json`. It **preserves** project history: `MASTERPLAN.md`, `BUILDLOG.md`, `FOLLOWUPS.md`, `.taskstate/`, `ritual.config.yaml`, `decisions/0001-adopt-ritual.md`.
 
 **What's the v0.2 roadmap?**
-Tracked as issues at https://github.com/jerryneoneo/claude-the-builder/issues. Core themes: walk preflight hooks for env-heavy projects, blitz audit stubs, auto-fix budget surfacing, multi-attempt walk reporting, and a one-page ritual overview.
+Tracked as issues at https://github.com/totalnike90/claude-the-builder/issues. Core themes: walk preflight hooks for env-heavy projects, blitz audit stubs, auto-fix budget surfacing, multi-attempt walk reporting, and a one-page ritual overview.
 
 ---
 
