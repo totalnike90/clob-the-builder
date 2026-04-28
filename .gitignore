@@ -1,0 +1,19 @@
+# Local rendering artifacts
+*.draft
+*.proposed
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Test workspace artifacts
+tests/.tmp/
+tests/_workspace/
+examples/*/node_modules/
+examples/*/.next/
+examples/*/.taskstate/
+examples/*/.worktrees/
+examples/*/.claude/ritual/
