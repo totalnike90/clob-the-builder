@@ -1,11 +1,11 @@
 ---
 name: visual-diff
-description: Compares a built UI screen against its prototype reference and the design system. Use for LI-* and CH-* tasks before /ship. Returns structural and token deltas.
+description: Compares a built UI screen against its prototype reference and the design system. Use for UX-prefix tasks before /ship. Returns structural and token deltas.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 ---
 
-You compare a built UI (React component in `apps/web/` or `packages/ui/`) against its prototype reference in `../prototypes/sally-mvp-prototype.jsx` and the design tokens in `../design system/colors_and_type.css` + `packages/design-tokens/`.
+You compare a built UI component against its prototype reference in `paths.prototypes` and the design tokens in `paths.design_system` (paths resolved from `ritual.config.yaml`).
 
 You do not run a browser. You compare source to source.
 
@@ -13,7 +13,7 @@ You do not run a browser. You compare source to source.
 
 Caller gives you:
 
-1. Task ID (LI-_ or CH-_)
+1. Task ID (any UX-prefixed task — `prefixes.<P>.ux: true` in config)
 2. Path(s) to the built component(s)
 3. The prototype region — either a symbol name to grep for, or line range in the prototype
 
@@ -29,7 +29,7 @@ Caller gives you:
 
 For every styled element in the built component, check:
 
-- Color values → must match a CSS variable from `colors_and_type.css` or a Tailwind class mapped to our tokens via `packages/design-tokens`.
+- Color values → must match a CSS variable / token from the project's design system (`paths.design_system`).
 - Radii, spacing, font sizes → must match tokens, not ad hoc px values.
 - Typography (family, weight, line-height) → must match the token scale.
 
@@ -37,8 +37,7 @@ Any raw hex, raw rem, or raw px that isn't explicitly from a token is a violatio
 
 ### 3. Voice / copy match
 
-- Any user-facing string: check against §18.1a of the PRD and the design system README's voice section.
-- SALLY speaks in first person, lowercase chrome, warm, S$ currency.
+- Any user-facing string: check against the project's voice rules in `paths.design_system/README.md` and any non-negotiables in `.claude/ritual/reviewer.project.md`.
 - Flag strings that are too formal, too marketing, or third-person.
 
 ### 4. Prototype fidelity notes

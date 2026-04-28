@@ -6,7 +6,7 @@ argument-hint: [--i-know]
 You are driving a **session-level ritual bypass** per [ADR 0032](../../decisions/0032-blitz-fast-path.md), extended by [ADR 0034](../../decisions/0034-blitz-adhoc-and-scope-brief.md) (ad-hoc trailers + init scope brief). `/blitz` covers one task or many in a single live-iteration session against the dev server. `/review` + `/walk` are skipped; cheap gates (`format` + `lint` + `typecheck`) still run at land. Every granular commit must carry exactly one `Task: <ID>` trailer — task discovery happens at land-time by scanning trailers. Ad-hoc work uses `Task: NEW-<slug>` placeholders that resolve at land into a real MASTERPLAN ID (promote a new row, or fold into an existing row). `main` linearity is preserved via the shared `.ship.lock`. The 1:1 task/revert invariant is preserved — `/blitz` creates one squash commit per resolved task ID.
 
 Parse `$ARGUMENTS`:
-- `--i-know` — if present, records operator override for risky-surface touches (migrations, `supabase/config.toml`, RLS policies, `rollbacks/**`). Persisted in `.taskstate/_blitz.json` so both phases honour it.
+- `--i-know` — if present, records operator override for risky-surface touches (project-defined in `ritual.config.yaml` — typically migrations, schema/config files, RLS policies, rollback files). Persisted in `.taskstate/_blitz.json` so both phases honour it.
 
 ## Phase detection
 
@@ -26,16 +26,16 @@ Run from repo root on `main`.
 
 1. `git fetch origin`.
 2. Require current branch = `main` and working tree clean. Else stop: `"Commit or stash current work before /blitz. Blitz runs from a clean main."`
-3. Ask operator for a session slug: short kebab-case descriptor of the session's intent (e.g. `reel-polish`, `onboarding-fixes`).
+3. Ask operator for a session slug: short kebab-case descriptor of the session's intent (e.g. `polish-pass`, `onboarding-fixes`).
 4. **Optional intent + scope brief** ([ADR 0034](../../decisions/0034-blitz-adhoc-and-scope-brief.md)):
    ```
    Describe what you intend to build this session (blank to skip):
    ```
    - Blank → skip the brief; record `intent: null`, `scope_brief: null` in the marker.
    - Non-blank → run the deconfliction brief:
-     1. Tokenize intent: lowercase, drop common stopwords (`a, an, the, and, or, to, of, for, in, on, with, that, this`), keep tokens with length ≥ 3.
+     1. Tokenize intent: lowercase, drop common stopwords (`a, an, the, and, or, to, of, for, in, on, with, that, this`), keep tokens with length >= 3.
      2. Grep `MASTERPLAN.md` rows whose subject column matches any keyword (case-insensitive). Cap at top 5 by token-hit count, ordered by phase+ID. For each match, capture `<ID>`, `<subject>`, sidecar status from `.taskstate/<ID>.json`.
-     3. Grep `../specs/SALLY-PRD-Tech-Spec.md` headers (`^#{1,4} `) matching any keyword (case-insensitive). Cap at top 5. For each match, capture `<§ref>`, header text, and a stub heuristic — section is "stub" if its body until the next header is fewer than 5 non-blank lines.
+     3. Grep the PRD (`{{paths.prd}}`) for headers (`^#{1,4} `) matching any keyword (case-insensitive). Cap at top 5. For each match, capture `<ref>`, header text, and a stub heuristic — section is "stub" if its body until the next header is fewer than 5 non-blank lines.
      4. Print:
         ```
         Scope brief: "<intent>"
@@ -46,7 +46,7 @@ Run from repo root on `main`.
           (or "none — keyword grep found no overlap" if zero hits)
 
         PRD sections referenced:
-          - §X.Y <header> — <stub | non-stub>
+          - <ref> <header> — <stub | non-stub>
           ...
           (or "none" if zero hits)
 
@@ -75,13 +75,7 @@ Run from repo root on `main`.
      "staged_edits": []
    }
    ```
-7. Commit that single file as `chore: start blitz <slug>` with trailer:
-   ```
-   Task: BLITZ
-   PRD-refs: n/a (blitz session)
-   Slice: n/a
-   ```
-   The synthetic `BLITZ` trailer is never surfaced in BUILDLOG — Phase 2's trailer scan skips it.
+7. Commit that single file as `chore: start blitz <slug>` with the trailer `Task: BLITZ` (any other trailer keys per `commit.trailer_keys` are project-defined). The synthetic `BLITZ` trailer is never surfaced in BUILDLOG — Phase 2's trailer scan skips it.
 8. Brief the operator:
 
 ```
@@ -92,23 +86,24 @@ Intent: <intent or "skipped">
 
 Iterate freely:
   - Edit any files you need across any tasks (existing MP rows or new scope).
-  - Run  pnpm dev  and verify UX in-browser as you go.
+  - Run the project's dev server and verify in-browser as you go.
   - Every commit MUST carry exactly one  Task: <ID>  trailer.
     Commits spanning two tasks → split into two commits (use git rebase -i if needed).
 
   Trailer ID forms accepted:
     - <existing MP ID>     — must have non-terminal sidecar:
-        todo                 — F-*, SC-*, BP-*, PR-*, CH-*, AU-*
-        planned              — AG-*, LI-* (run /plan-build first; plan gate per ADR 0029)
-    - NEW-<your-slug>      — placeholder for ad-hoc work without a MP row (ADR 0034).
+        todo                 — for prefixes whose pre_build_plan_gate is false
+        planned              — for prefixes whose pre_build_plan_gate is true
+                              (run /plan-build first)
+    - NEW-<your-slug>      — placeholder for ad-hoc work without a MP row.
                              Resolved at land into a real ID via:
                                (a) Promote — create a new MP row + sidecar
                                (b) Fold    — bucket into an existing MP ID
                                (c) Abort   — halt the session, no partial ship
 
   Deps per task are re-checked at land (shipped / patched / blitzed all accepted).
-  PRD edits are first-class: edit  ../specs/SALLY-PRD-Tech-Spec.md  inside any
-  task's commits. Reconciliation will surface the changes at land.
+  PRD edits are first-class: edit the PRD inside any task's commits.
+  Reconciliation will surface the changes at land.
 
 When done, run  /blitz  again on this branch to land.
 
@@ -157,35 +152,31 @@ Build `TASK_COMMITS`: ordered map `ID → [sha1, sha2, ...]` (preserves trailer-
 For each unique task ID in `TASK_COMMITS`:
 
 - **`NEW-<slug>` IDs** — skip all three checks below. They have no MASTERPLAN row by definition; resolution happens in Step 4. Risky-surface gate (Step 3) and cheap gates (Step 5) still apply unchanged to their commits.
-- **Real IDs** (e.g. `LI-09`, `F-22`) — run all three checks:
+- **Real IDs** — run all three checks:
 
   1. MASTERPLAN row exists. Missing → stop naming the ID.
   2. Read `.taskstate/<ID>.json`. Status must be:
-     - `todo` for F-\*/SC-\*/BP-\*/PR-\*/CH-\*/AU-\*.
-     - `planned` for AG-\*/LI-\* (plan gate per [ADR 0029](../../decisions/0029-ritual-blast-radius-scaling.md)). `todo` → stop: `"/plan-build <ID> first — AG-*/LI-* require a plan gate."`
+     - `todo` for prefixes whose `pre_build_plan_gate: false` (or absent).
+     - `planned` for prefixes whose `pre_build_plan_gate: true`. `todo` → stop: `"/plan-build <ID> first — this prefix requires a plan gate."`
      - Anything else → stop: `"<ID> is <status> — remove its commits from this session or drop the session."`
   3. Each `Deps` ID's sidecar must be `shipped` / `patched` / `blitzed`. Missing → stop naming the blocking dep.
 
 ### Step 3 — Risky-surface gate
 
-Compute `git diff --name-only origin/main...HEAD`. Match against:
+Compute `git diff --name-only origin/main...HEAD`. Risky surfaces are project-defined in `ritual.config.yaml` under a `blitz.risky_surfaces` array (glob patterns or path prefixes). Typical entries:
 
-- `supabase/migrations/`
-- `supabase/config.toml`
-- `rollbacks/**`
-- `*.sql` outside `supabase/migrations/`
-- RLS policy files not matching an `auth.uid() IS NOT NULL` sweep pattern
+- migration files / database-versioning paths
+- non-application config that affects all developers (lock-files, docker-compose, env templates)
+- access-control / RLS policy files
+- rollback or down-migration paths
 
-If any match and `_blitz.json.i_know !== true` → stop:
+If any matched path is in the diff and `_blitz.json.i_know !== true` → stop:
 
 ```
 /blitz refuses to touch <matched surfaces> without --i-know.
 
-These surfaces have complex revert semantics:
-  - supabase/migrations/         — down-migration required in BUILDLOG revert
-  - supabase/config.toml         — affects all local devs
-  - RLS policies                 — data-access blast radius
-  - rollbacks/**                 — your revert trail itself
+These surfaces have complex revert semantics — see ritual.config.yaml
+`blitz.risky_surfaces` for the project-defined list.
 
 If you're sure, re-run:  /blitz --i-know
 Otherwise, squash the offending commits out via  git rebase -i  and re-run.
@@ -220,13 +211,13 @@ For each task ID in `TASK_COMMITS`:
    ```
 
    - **P (Promote).** Sequential prompts (same field set as Step 7.iii):
-     - Phase prefix (`F` / `SC` / `BP` / `PR` / `LI` / `AG` / `CH` / `AU`).
+     - Phase prefix (any prefix listed in `prefixes:` in `ritual.config.yaml`).
      - New MASTERPLAN ID — must not collide with any existing MASTERPLAN row or `.taskstate/<ID>.json` file. Reject and re-prompt on collision.
      - Subject (one line).
      - Deps (comma-separated MASTERPLAN IDs, or blank). Each declared dep's sidecar must be `shipped` / `patched` / `blitzed`; reject and re-prompt on a missing or non-terminal dep.
-     - PRD refs (e.g. `§6.4, US-12`).
-     - Slice (`1` / `2`).
-     Stage `{ "type": "adhoc_resolution", "placeholder": "NEW-<slug>", "mode": "promote", "new_id": "<NEW-ID>", "subject": "...", "deps": "...", "prd_refs": "...", "slice": "..." }`.
+     - PRD refs.
+     - Any additional trailer keys defined in `commit.trailer_keys`.
+     Stage `{ "type": "adhoc_resolution", "placeholder": "NEW-<slug>", "mode": "promote", "new_id": "<NEW-ID>", ... }`.
    - **F (Fold).** Prompt for an existing MASTERPLAN ID. Validate: row exists; sidecar status is non-terminal (`todo`/`planned`/`in-progress`/`built`/`walked`/`reviewed` — lattice per [ADR 0037](../../decisions/0037-walk-before-gates-iterative.md)). Status `shipped`/`patched`/`blitzed`/`reverted`/`blocked` → reject and re-prompt. Stage `{ "type": "adhoc_resolution", "placeholder": "NEW-<slug>", "mode": "fold", "target_id": "<EXISTING-ID>" }`.
    - **A (Abort).** Persist current `_blitz.json.staged_edits`, release any acquired lock, exit:
      ```
@@ -251,17 +242,17 @@ For each task ID in `TASK_COMMITS`:
 
 3. Read the MASTERPLAN row; extract subject, `Deps`, `PRD` column.
 
-4. Read the PRD sections from `../specs/SALLY-PRD-Tech-Spec.md`. Extract lightweight surface hints per section — filename tokens, `/path` endpoints, PascalCase component names, `US-\d+` / `§[\d.]+` cross-refs. Best-effort parser; a reading aid, not a gate.
+4. Read the PRD sections from `{{paths.prd}}`. Extract lightweight surface hints per section — filename tokens, `/path` endpoints, PascalCase component names, cross-refs. Best-effort parser; a reading aid, not a gate.
 
 5. Display the three-column summary:
 
    ```
    === Scope reconciliation: <ID> — <subject> ===
 
-   MASTERPLAN row PRD refs : §X.Y, US-N
+   MASTERPLAN row PRD refs : <refs>
    Files touched (N)       : <file1>
                              <file2>
-   PRD §X surface hints    : <hints>
+   PRD surface hints       : <hints>
 
    Anything drift from what the row expects?
      N — proceed, no updates needed
@@ -281,15 +272,15 @@ For each task ID in `TASK_COMMITS`:
 
    **ii. PRD section update?**
    ```
-   Implementation may have drifted from <§list>. Update any?
-     (open §X / open §Y / N)
+   Implementation may have drifted from <ref-list>. Update any?
+     (open <ref> / N)
    ```
-   On `open §X`: record PRD file mtime, then:
+   On `open <ref>`: record PRD file mtime, then:
    ```bash
-   "${EDITOR:-${VISUAL:-nvim}}" +/§X "../specs/SALLY-PRD-Tech-Spec.md"
+   "${EDITOR:-${VISUAL:-nvim}}" "{{paths.prd}}"
    ```
    Fall back to `vi` if `nvim` missing. Operator edits, saves, exits. Re-check mtime:
-   - Changed → stage `{ "type": "prd_edit", "section": "§X", "file": "../specs/SALLY-PRD-Tech-Spec.md" }` and snapshot the file into `.taskstate/_blitz.staged.<slug>/prd.md` (so Phase 2 retries see the operator's edit even if they revert the PRD file externally).
+   - Changed → stage `{ "type": "prd_edit", "ref": "<ref>", "file": "{{paths.prd}}" }` and snapshot the file into `.taskstate/_blitz.staged.<slug>/prd.md` (so Phase 2 retries see the operator's edit even if they revert the PRD file externally).
    - Unchanged → no stage.
 
    **iii. New MASTERPLAN row needed?**
@@ -307,9 +298,9 @@ For each task ID in `TASK_COMMITS`:
 ### Step 5 — Cheap safety gates (parallel)
 
 ```bash
-pnpm format:check & FPID=$!
-pnpm lint         & LPID=$!
-pnpm typecheck    & TPID=$!
+$(bash .claude/ritual/scripts/ritual-config.sh gate.cmd format) & FPID=$!
+$(bash .claude/ritual/scripts/ritual-config.sh gate.cmd lint)   & LPID=$!
+$(bash .claude/ritual/scripts/ritual-config.sh gate.cmd typecheck) & TPID=$!
 wait $FPID; FC=$?
 wait $LPID; LC=$?
 wait $TPID; TC=$?
@@ -344,7 +335,7 @@ For each task ID in `TASK_COMMITS`, prompt:
 Any follow-ups to register for <ID>? (blank = none; else paste bulleted list)
 ```
 
-Standard triage loop per-bullet (promote / fold / drop / resolved), batch option first per [ADR 0020](../../decisions/0020-batch-dispositions-ship-step-7-5.md). Hold dispositions in memory keyed by task ID.
+Standard triage loop per-bullet (promote / fold / drop / resolved), batch option first. Hold dispositions in memory keyed by task ID.
 
 ### Step 9 — Multi-task squash sequence
 
@@ -366,7 +357,7 @@ For each unique task ID in `TASK_COMMITS` (trailer-first-seen order):
    ```bash
    GRANULAR=$(for sha in "${TASK_COMMITS[<ID>]}"; do git log -1 --format='- %s' "$sha"; done)
    ```
-4. Build squash commit message via HEREDOC:
+4. Build squash commit message via HEREDOC. Trailer keys per `commit.trailer_keys`:
    ```
    <ID>: <subject-from-MASTERPLAN>
 
@@ -377,8 +368,6 @@ For each unique task ID in `TASK_COMMITS` (trailer-first-seen order):
    blitz/<slug> (bundled with: <other task IDs or "none">)
 
    Task: <ID>
-   PRD-refs: <§ numbers from MASTERPLAN row>
-   Slice: <from MASTERPLAN>
    ```
 5. `git commit -F <heredoc>`; capture `SQUASH_<ID>=$(git rev-parse HEAD)`.
 
@@ -393,7 +382,7 @@ For each unique task ID in `TASK_COMMITS` (trailer-first-seen order):
 2. On `main`:
 
    **a. Apply ad-hoc resolutions first** (so sidecar flips below see the resolved IDs and any newly-created sidecars). For each `adhoc_resolution` in `_blitz.json.staged_edits`:
-   - `mode: promote` → append new MASTERPLAN row using the staged fields (phase / new_id / subject / deps / prd_refs / slice). Write a fresh `.taskstate/<NEW-ID>.json` sidecar. The synthetic ID is now treated as a "covered" ID for sidecar flips below.
+   - `mode: promote` → append new MASTERPLAN row using the staged fields. Write a fresh `.taskstate/<NEW-ID>.json` sidecar. The synthetic ID is now treated as a "covered" ID for sidecar flips below.
    - `mode: fold` → no MASTERPLAN/sidecar mutation here; the placeholder's commits already merged into `target_id`'s `TASK_COMMITS` entry in Step 4.0, and `target_id`'s existing sidecar gets flipped below.
 
    **b. Sidecar flips.** For each covered `<ID>` (post-resolution):
@@ -404,7 +393,7 @@ For each unique task ID in `TASK_COMMITS` (trailer-first-seen order):
 
    **c. Apply remaining staged reconciliation edits** from `_blitz.json.staged_edits`:
    - `masterplan_row_update` → regex-replace the row's field.
-   - `prd_edit` → copy the snapshot `.taskstate/_blitz.staged.<slug>/prd.md` → `../specs/SALLY-PRD-Tech-Spec.md`.
+   - `prd_edit` → copy the snapshot `.taskstate/_blitz.staged.<slug>/prd.md` → `{{paths.prd}}`.
    - `masterplan_new_row` (Step 4.7.iii promotions, separate from `adhoc_resolution`) → append MASTERPLAN row + write new `.taskstate/<NEW-ID>.json` sidecar.
 
    **d. Promoted dispositions from Step 8** → write new `.taskstate/<NEW-ID>.json` sidecars and append MASTERPLAN rows.
@@ -414,16 +403,16 @@ For each unique task ID in `TASK_COMMITS` (trailer-first-seen order):
      ```markdown
      <!-- TASK:BLITZ-<slug>:START -->
 
-     ## YYYY-MM-DD HH:MM SGT — Blitz session: <slug>
+     ## YYYY-MM-DD HH:MM — Blitz session: <slug>
 
      - Path: `/blitz` session fast-path ([ADR 0032](decisions/0032-blitz-fast-path.md), extended by [ADR 0034](decisions/0034-blitz-adhoc-and-scope-brief.md))
      - Intent: <intent or "skipped">
      - Tasks covered: <ID1>, <ID2>, ...
-     - Gates run: format ✓ · lint ✓ · typecheck ✓ · tests — skipped · build — skipped · task-specific — skipped
+     - Gates run: format · lint · typecheck (passed) · tests — skipped · build — skipped · task-specific — skipped
      - Bypass: `/review` + `/walk` skipped for all tasks in this session
      - Risky surfaces touched: <list or "none">  (Override: <--i-know or "n/a">)
      - Reconciliation summary: <aggregate or "none">
-     - Ad-hoc resolutions: <count + summary, e.g. "1 promoted (NEW-lookbook → LI-21), 1 folded (NEW-search-fix → LI-09)" or "none">
+     - Ad-hoc resolutions: <count + summary or "none">
 
      <!-- TASK:<ID1>:START -->
      ### <ID1> — <subject>
@@ -456,15 +445,13 @@ For each unique task ID in `TASK_COMMITS` (trailer-first-seen order):
    Task: <ID1>
    Task: <ID2>
    ...
-   PRD-refs: <union of all tasks' refs>
-   Slice: <union>
    ```
    Staged files:
    - every flipped `.taskstate/<ID>.json`
    - `BUILDLOG.md`
    - `FOLLOWUPS.md` (if regenerated)
    - `MASTERPLAN.md` (if any row-update or new-row edits)
-   - `../specs/SALLY-PRD-Tech-Spec.md` (if any PRD edit)
+   - `{{paths.prd}}` (if any PRD edit)
    - `.taskstate/<NEW-ID>.json` per promoted/new row
    - removal of `.taskstate/_blitz.json` and `.taskstate/_blitz.staged.<slug>/` (session cleanup)
 
@@ -482,14 +469,14 @@ Tasks shipped: <N>
   - <ID2> — <subject>  (squash <SHA2>)
   ...
 
-Cheap gates: format ✓ lint ✓ typecheck ✓
-All sidecars: status → blitzed ✓
+Cheap gates: format / lint / typecheck (passed)
+All sidecars: status → blitzed
 Reconciliation: <aggregate or "none staged">
 BUILDLOG: bundled session entry appended with per-task anchors
 Ship lock: released
 
-⚠ Bypass summary: /review + /walk skipped for all <N> tasks. You owned verification.
-<if --i-know: ⚠ Risky surfaces touched: <list>. Individual reverts may require down-migration steps — see BUILDLOG.>
+Bypass summary: /review + /walk skipped for all <N> tasks. You owned verification.
+<if --i-know: Risky surfaces touched: <list>. Individual reverts may require down-migration steps — see BUILDLOG.>
 
 Ready for /plan-next.
 ```
@@ -498,14 +485,14 @@ Ready for /plan-next.
 
 ## Never
 
-- Never run `/blitz` without an in-browser `pnpm dev` check per task. That's the verification contract replacing `/review` + `/walk`.
+- Never run `/blitz` without an in-browser dev-server check per task. That's the verification contract replacing `/review` + `/walk`.
 - Never accept a commit without a `Task:` trailer at land. No exceptions — even a one-line typo fix needs its ID.
 - Never accept commits with multi-value `Task:` trailers. Each commit belongs to exactly one task; split via `git rebase -i`.
 - Never let `/blitz` proceed on cherry-pick conflicts between tasks — abort the whole session and restart as separate blitzes per task.
 - Never `--amend` on a blitz branch — the granular trailers are the source of truth for the squash journey.
 - Never squash-sequence without `.ship.lock`. `/blitz`, `/ship`, `/patch` all serialize through it.
 - Never skip the BUILDLOG session entry. The bypass must be recoverable from `BUILDLOG.md` alone.
-- Never let `/blitz` bypass the AG-\*/LI-\* plan gate. `status: planned` required; `todo` → redirect to `/plan-build`.
+- Never let `/blitz` bypass the plan gate for prefixes whose `pre_build_plan_gate: true`. `status: planned` required; `todo` → redirect to `/plan-build`.
 - Never auto-apply MASTERPLAN edits during Step 4 reconciliation. Every row change is operator-typed into the prompt; `/blitz` only stages it.
 - Never auto-generate PRD prose. Open `$EDITOR`; operator writes the change. `/blitz` only stages based on mtime drift.
 - Never skip Step 4 reconciliation. Blank answers (all N) are fine; silent skips are not. The prompt runs per task.

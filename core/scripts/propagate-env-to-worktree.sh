@@ -1,32 +1,20 @@
 #!/usr/bin/env bash
-# BP-17: Propagate local env files (.env.local, .env.*.local) from the main
-# checkout into a newly-created worktree so UX-walk screens do not blank on
-# missing NEXT_PUBLIC_SUPABASE_URL and similar env. See
-# decisions/0033-worktree-env-propagation.md.
+# Propagate local env files (.env.local, .env.*.local) from the main checkout
+# into a newly-created worktree so dev servers in worktrees can find vars like
+# NEXT_PUBLIC_*, DATABASE_URL, etc.
 #
-# Convention: COPY (not symlink). A copy isolates per-worktree overrides such
-# as LI-13's LI13_WALK_FIXTURE flag from the main checkout and other sibling
-# worktrees. Symlinks would auto-track edits in the main checkout but coupling
-# is the wrong default — see ADR 0033 for the trade-off.
+# Convention: COPY (not symlink). A copy isolates per-worktree overrides from
+# the main checkout and sibling worktrees.
 #
-# Invoked by /build immediately after `git worktree add` +
-# `scripts/set-worktree-project-id.sh`. Idempotent — skips files that already
-# exist in the destination. Silent no-op if MAIN_ROOT has no matching env
-# files (fresh-clone contributors without .env.local yet).
+# Invoke from `hooks.post_worktree_create` in `ritual.config.yaml`. Idempotent
+# — skips files that already exist in the destination. Silent no-op if
+# MAIN_ROOT has no matching env files.
 #
 # Files propagated: the repo root's .env.local plus any .env.<name>.local.
-# Each file is copied to BOTH the worktree root AND apps/web/ — Next 14
-# only loads env from the package directory at `next dev` time, not from
-# the monorepo root, so a worktree-root copy alone leaves the dev server
-# without NEXT_PUBLIC_SUPABASE_URL etc. (BP-23 / ADR 0033). The worktree-
-# root copy is still useful for non-Next consumers (Go gateway, Python
-# agent, scripts) that look at the repo root.
-#
-# The apps/web/ mirror is skipped silently when the worktree has no
-# apps/web/ dir (keeps the script useful in repos without that layout).
-# Per-app env files (apps/*/.env.local) beyond apps/web/ are out of scope
-# — adding them is a copy-paste extension if/when a second Next package
-# lands.
+# Each file is copied to BOTH the worktree root AND `apps/web/` (when present)
+# — Next.js loads env from the package directory, not the monorepo root.
+# Customise the mirror destinations by editing `dests=(...)` below if your
+# project has a different layout.
 #
 # Usage:
 #   scripts/propagate-env-to-worktree.sh [MAIN_ROOT] [WORKTREE_ROOT]
@@ -55,7 +43,7 @@ if [ -z "$MAIN_ROOT" ]; then
     exit 0
   fi
   # awk strips the literal "worktree " prefix instead of using $2 so repo
-  # paths containing spaces (e.g. "~/My Projects/sally-mvp") are preserved.
+  # paths containing spaces are preserved.
   MAIN_ROOT="$(git -C "$WORKTREE_ROOT" worktree list --porcelain 2>/dev/null \
     | awk '/^worktree / { sub(/^worktree /, ""); print; exit }' || true)"
   if [ -z "$MAIN_ROOT" ]; then

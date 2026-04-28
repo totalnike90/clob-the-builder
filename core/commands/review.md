@@ -5,12 +5,19 @@ argument-hint: <TASK-ID>
 
 You are requesting an independent review for task **$ARGUMENTS** under workflow v2 ([ADR 0005](../../decisions/0005-parallel-tasks-via-worktrees.md)).
 
+0. **Empty-prefix gate.** If `ritual.config.yaml` has no `prefixes:` configured, stop with: *"Run `/plan-init <PRD-PATH>` first. The ritual needs a master plan before tasks can be picked."* Check via:
+   ```bash
+   if ! bash .claude/ritual/scripts/ritual-config.sh has-prefixes; then
+     echo "Run /plan-init <PRD-PATH> first."; exit 1
+   fi
+   ```
+
 ## Preflight — must run inside the task's worktree
 
 1. Read `.taskstate/$ARGUMENTS.json` from the main checkout.
 2. Confirm `pwd` matches sidecar `worktree` and `git branch --show-current` matches `branch`. Off → stop.
 3. Confirm sidecar `status: walked` (per [ADR 0037](../../decisions/0037-walk-before-gates-iterative.md) — `/walk` runs before `/check` + `/review`). `built` → stop: "Run `/walk <ID>` first." `in-progress` → stop (build not finished).
-4. **Gate artefacts must exist and be green** (per [ADR 0008](../../decisions/0008-ritual-consistency-fixes.md)). Read `.taskstate/artifacts/$ARGUMENTS/gate-summary.json`. Missing → stop: "`/check $ARGUMENTS` has not been run (or artefacts were cleaned). Run `/check <ID>` first." Any gate `fail` → stop and list it. `skip` is permitted only with a `reason` field; otherwise treat as fail.
+4. **Gate artefacts must exist and be green.** Read `.taskstate/artifacts/$ARGUMENTS/gate-summary.json`. Missing → stop: "`/check $ARGUMENTS` has not been run (or artefacts were cleaned). Run `/check <ID>` first." Any gate `fail` → stop and list it. `skip` is permitted only with a `reason` field; otherwise treat as fail.
 
 ## Gather the review package
 
@@ -19,24 +26,27 @@ For the reviewer:
 - Task ID, subject, PRD refs.
 - PRD section text — copy the relevant paragraphs verbatim, not just the link.
 - Full diff: `git diff main...HEAD`.
-- Prototype reference if UI: `rg -l "<relevant component>" ../prototypes/`.
+- Prototype reference if UI: `rg -l "<relevant component>" {{paths.prototypes}}/`.
 - Tests added.
 - Migrations added.
 - Coverage from `.taskstate/artifacts/<ID>/coverage.json` (emitted by `/check`).
-- For **LI-\*** / **CH-\***: Playwright screenshots at `.taskstate/artifacts/<ID>/screenshots/` — attach so design-token drift (hex, radii, spacing) is caught visually.
+- For UX-prefixed tasks: screenshots at `.taskstate/artifacts/<ID>/screenshots/` — attach so design-token drift (hex, radii, spacing) is caught visually.
+- The project's non-negotiable rules file: `.claude/ritual/reviewer.project.md` (loaded by the reviewer subagent itself).
 
 ## Spawn the reviewer(s)
 
-Primary: Agent tool with `subagent_type: reviewer`. Model **sonnet** for normal tasks. Use **opus** if this is the last task in its phase (scan `.taskstate/<same-prefix>-*.json` — no sibling with `todo` or `in-progress` → phase-closing → opus).
+Primary: Agent tool with `subagent_type: reviewer`. Model **sonnet** for normal tasks. Use **opus** if this is the last task in its prefix (scan `.taskstate/<same-prefix>-*.json` — no sibling with `todo` or `in-progress` → phase-closing → opus).
 
-**Parallel security pass** — dispatch `subagent_type: security-reviewer` _in the same message_ (parallel tool calls) when the task prefix is **AU-\***, **AG-\***, or any diff touching payment code, auth middleware, JWT, RLS, or agent system-prompt surface. Any CRITICAL from security-reviewer = Fail.
+**Parallel security pass** — dispatch `subagent_type: security-reviewer` _in the same message_ (parallel tool calls) when the task touches authentication, authorization, payment code, secrets management, RLS / row-level access, or any non-negotiable rule with `security: true` in `ritual.config.yaml`. Any CRITICAL from security-reviewer = Fail.
 
 Reviewer prompt (self-contained — no references to this chat):
 
 ```
 Review task <ID>: <subject>
 
-This task is part of the SALLY MVP. You have NOT seen the implementation discussion. Your job is an independent check against the PRD and the non-negotiable rules.
+You have NOT seen the implementation discussion. Your job is an independent check
+against the PRD acceptance criteria and the project's non-negotiable rules in
+`.claude/ritual/reviewer.project.md`.
 
 PRD section(s):
 <paste the relevant PRD paragraphs verbatim>
@@ -50,23 +60,36 @@ Tests added:
 Migrations added:
 <list>
 
-Check:
-1. Acceptance criteria — does the diff meet EVERY criterion in the PRD? Call out missing, stubbed, or misimplemented.
-2. Non-negotiable rules (PRD §9.3, §9.4) — if this diff touches agent/chat/listing data: buyer identity isolation, cross-item isolation, offline block, show_buy_now, 7-day return? Spot any rule softening.
-3. Design system — if UI: colors/radii/tokens/icons from the approved palette? No invented values? Voice matches §18.1a + design system README? Compare attached screenshots to the prototype — call out token drift.
-4. Voice & copy — first-person as SALLY, never third-person. Currency `S$45`, time `2m ago`. Emoji ≤1 per line, end-of-line. Flag violations with file:line.
-5. Data safety — RLS present and correct on new tables? Service-role key usage scoped?
-6. Reverts — self-contained enough to `git revert <sha>` without taking out unrelated work?
-7. Tests — happy path + ≥1 failure mode? Assert acceptance criteria? Coverage: <paste lines_pct>. Flag <80% for touched packages, noting whether the gap is acceptable.
-8. Code quality — functions ≤50 LOC, files ≤800 LOC, nesting ≤4. Explicit error handling, no silent swallow. No hardcoded secrets. No `console.log`/`print` debug. Flag with file:line.
+Check (in order):
+1. Acceptance criteria — does the diff meet EVERY criterion in the PRD? Call out
+   missing, stubbed, or misimplemented.
+2. Non-negotiable rules — load `.claude/ritual/reviewer.project.md`. For each rule
+   whose `applies_to` array includes the task's prefix, check the diff and report
+   Pass/Fail with file:line evidence. Severity `blocker` → fail review.
+   Severity `major` → flag but allow Pass with explanation.
+3. Design system — if UI: colors, radii, tokens, icons all sourced from the design
+   system (see `{{paths.design_system}}/`)? Compare attached screenshots to the
+   prototype (`{{paths.prototypes}}/`) — call out token drift. Voice/copy rules
+   are project-defined; the reviewer.project.md file enumerates them.
+4. Data safety — RLS or equivalent access control on new tables / collections?
+   Service-role / privileged credentials scoped to server-side code only?
+5. Reverts — self-contained enough to `git revert <sha>` without taking out
+   unrelated work?
+6. Tests — happy path + ≥1 failure mode? Assert acceptance criteria? Coverage:
+   <paste lines_pct>. Flag below-target coverage for touched packages, noting
+   whether the gap is acceptable.
+7. Code quality — functions <= 50 LOC, files <= 800 LOC, nesting <= 4. Explicit
+   error handling, no silent swallow. No hardcoded secrets. No debug print/log
+   statements. Flag with file:line.
 
 Output:
-Pass / Fail, followed by a numbered list of specific findings with file:line. If Pass, note non-blocking suggestions for future tasks.
+Pass / Fail, followed by a numbered list of specific findings with file:line.
+If Pass, note non-blocking suggestions for future tasks.
 ```
 
 ## Act on the result
 
-Pass behavior is uniform across all prefixes (per [ADR 0037](../../decisions/0037-walk-before-gates-iterative.md), which supersedes [ADR 0018](../../decisions/0018-collapse-walk-fastpath-into-review.md)'s prefix-aware fast-path — the walk-skip for non-UX prefixes now lives in `/walk` itself, upstream of `/review`).
+Pass behavior is uniform across all prefixes (per [ADR 0037](../../decisions/0037-walk-before-gates-iterative.md) — the walk-skip for non-UX prefixes lives in `/walk` itself, upstream of `/review`).
 
 - **Pass (any prefix)** → flip sidecar → `status: reviewed`; refresh `updated_at`; commit as `chore: reviewed <ID>` with the task trailer. Tell user: "Reviewed. Run `/ship <ID>`."
 - **Fail** → keep sidecar at `walked`, show findings, recommend blockers. Do not auto-fix. User decides whether to edit code in the worktree (which will require a re-walk per ADR 0037 since the diff changes) or override.

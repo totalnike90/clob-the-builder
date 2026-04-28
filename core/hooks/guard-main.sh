@@ -36,7 +36,7 @@ branch=$(git -C "$(pwd)" branch --show-current 2>/dev/null || echo "")
 #    Narrow exceptions (ADR 0004 + ADR 0010 + ADR 0012 + ADR 0032) — seven permitted shapes on main:
 #      - 'chore: ship <ID>'                  ritual /ship metadata commit (ADR 0004)
 #      - 'chore: buildlog fix <ID>'          retroactive BUILDLOG correction (ADR 0004)
-#      - 'chore: provision <service>'        PR-* sidecar + services.json flip (ADR 0009/0010)
+#      - 'chore: provision <service>'        provisioning sidecar flip
 #      - 'chore: add PR-<N>[...]'            plan-scope add of a new PR-* row (ADR 0010)
 #      - 'chore: adopt ADR-<N>[...]'         ADR landing with its own meta-edits (ADR 0012)
 #      - 'chore: ship blitz <slug>'          /blitz Phase 2 Step 10 admin commit (ADR 0032)

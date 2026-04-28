@@ -5,6 +5,13 @@ argument-hint: <TASK-ID>
 
 You are running quality gates for task **$ARGUMENTS** under workflow v2 ([ADR 0005](../../decisions/0005-parallel-tasks-via-worktrees.md)).
 
+0. **Empty-prefix gate.** If `ritual.config.yaml` has no `prefixes:` configured, stop with: *"Run `/plan-init <PRD-PATH>` first. The ritual needs a master plan before tasks can be picked."* Check via:
+   ```bash
+   if ! bash .claude/ritual/scripts/ritual-config.sh has-prefixes; then
+     echo "Run /plan-init <PRD-PATH> first."; exit 1
+   fi
+   ```
+
 ## Preflight — must run inside the task's worktree
 
 1. Read `.taskstate/$ARGUMENTS.json` from the main checkout.
@@ -16,107 +23,104 @@ Do not change code unless a gate fails and the fix is obviously trivial (formatt
 
 ## Gates — run in order, stop on first failure
 
-### 0. Prefilter — diff-aware gate selection (per [ADR 0019](../../decisions/0019-diff-aware-check-gate-selection.md))
+### 0. Prefilter — diff-aware gate selection
 
 Compute `LIGHT` from the diff against `main`. Heavy gates (typecheck, tests, build) consult it; cheap gates (format, lint) and the task-specific gate always run.
 
 ```bash
 CHANGED_CODE=$(git diff --name-only main...HEAD \
-  | grep -E '\.(ts|tsx|js|jsx|mjs|cjs|go|py)$' || true)
-CHANGED_MIGRATIONS=$(git diff --name-only main...HEAD -- supabase/migrations/ || true)
-CHANGED_SCHEMA_SQL=$(git diff --name-only main...HEAD -- '*.sql' ':!supabase/migrations/' || true)
+  | grep -E '\.(ts|tsx|js|jsx|mjs|cjs|go|py|rb|java|kt|swift|rs|php|cs)$' || true)
+CHANGED_SCHEMA_SQL=$(git diff --name-only main...HEAD -- '*.sql' || true)
 
 LIGHT=0
-if [ -z "$CHANGED_CODE" ] && [ -z "$CHANGED_MIGRATIONS" ] && [ -z "$CHANGED_SCHEMA_SQL" ]; then
+if [ -z "$CHANGED_CODE" ] && [ -z "$CHANGED_SCHEMA_SQL" ]; then
   LIGHT=1
 fi
 ```
 
-Under `LIGHT=1`, heavy gates emit `"skip"` in `gate-summary.json` with `"reason": "light mode — no code changed"`, and the file carries top-level `"light": true` so `/review` surfaces the mode to the reviewer. Under `LIGHT=0` behaviour is unchanged from [ADR 0013](../../decisions/0013-local-check-parity.md). See ADR 0019 for the full gate matrix and "what counts as code" regex (deliberate: `.sql` outside migrations triggers full mode via `CHANGED_SCHEMA_SQL`; `.sh` covered by Format+Lint; `package.json`/`pnpm-lock.yaml` intentionally not code).
+Heavy gates emit `"skip"` in `gate-summary.json` with `"reason": "light mode — no code changed"` when `LIGHT=1`, and the file carries top-level `"light": true` so `/review` surfaces the mode to the reviewer. Light mode covers diffs that touch only documentation, configuration, or non-code assets — projects can extend the regex above to match their stack.
+
+Each heavy gate may opt out of light-mode skipping by setting `gates.<name>.light_eligible: false` in `ritual.config.yaml`. Check via:
+
+```bash
+bash .claude/ritual/scripts/ritual-config.sh gate.light_eligible <gate-name>
+```
 
 ### 1. Format
 
 ```bash
-pnpm format:check
+$(bash .claude/ritual/scripts/ritual-config.sh gate.cmd format)
 ```
 
 ### 2. Lint
 
 ```bash
-pnpm lint         # JS/TS via turbo (eslint + next lint)
-pnpm py:lint      # ruff check + ruff format --check in each service's venv
+$(bash .claude/ritual/scripts/ritual-config.sh gate.cmd lint)
 ```
-
-`py:lint` skips cleanly when a service's `.venv` is absent (F-16 / ADR 0013); bootstrap with `pnpm py:bootstrap` to activate locally. Go lint (`gofmt -l`) runs in CI only (`.github/workflows/ci.yml`).
 
 ### 3. Typecheck
 
 ```bash
-pnpm typecheck
+$(bash .claude/ritual/scripts/ritual-config.sh gate.cmd typecheck)
 ```
 
-TypeScript only. Python type-checking is opt-in per service (`mypy` if configured).
-
-**Skip when `LIGHT=1`** — emit `{ "typecheck": "skip", "reason": "light mode — no code changed" }`.
+**Skip when `LIGHT=1`** (and `gate.light_eligible typecheck` is `true`) — emit `{ "typecheck": "skip", "reason": "light mode — no code changed" }`.
 
 ### 4. Tests
 
 ```bash
-pnpm test         # JS/TS via turbo
-pnpm py:test      # pytest in api + agent
-pnpm go:test      # go test ./... in gateway
+$(bash .claude/ritual/scripts/ritual-config.sh gate.cmd test)
 ```
 
-Run the subset relevant to changed files if the full run exceeds 2 min: `turbo test --filter='...[HEAD^1]'`.
-
-**Skip when `LIGHT=1`** — emit `{ "tests": "skip", "reason": "light mode — no code changed" }` and omit `coverage.json` (empty coverage is misleading).
+**Skip when `LIGHT=1`** (and `gate.light_eligible test` is `true`) — emit `{ "tests": "skip", "reason": "light mode — no code changed" }` and omit `coverage.json` (empty coverage is misleading).
 
 ### 5. Build
 
 ```bash
-pnpm build        # turbo build
-pnpm go:build     # Go binary
+$(bash .claude/ritual/scripts/ritual-config.sh gate.cmd build)
 ```
 
-**Skip when `LIGHT=1`** — emit `{ "build": "skip", "reason": "light mode — no code changed" }`.
+**Skip when `LIGHT=1`** (and `gate.light_eligible build` is `true`) — emit `{ "build": "skip", "reason": "light mode — no code changed" }`.
 
 ### 6. Task-specific checks
 
-Based on the task ID prefix:
+Per the task's prefix in `ritual.config.yaml`, run the gate command from `gates.task_specific.by_prefix.<PREFIX>`:
 
-- **F-\***: run `pnpm dev` briefly; hit `/health` endpoints.
-- **SC-\***: `pnpm check:sc` — boots local Supabase (if down), runs `supabase db reset` + `supabase test db` (pgTAP). Prereq: Docker Desktop + Supabase CLI (see README.md "Prerequisites"). Missing prereq exits with a one-line remediation — that's `fail`, not `skip`. Per ADR 0013, this gate should be `pass` from SC-4 onwards — `skip` is a regression flag.
-- **AU-\***: hit auth endpoint with a test email; confirm magic-link flow end-to-end.
-- **LI-\***: Playwright screenshot-test against mobile viewport; compare structure to `../prototypes/sally-mvp-prototype.jsx`.
-- **AG-\***: exercise the LangGraph flow with a synthetic buyer message; confirm LangSmith trace tags; for negotiation tasks, run `apps/agent/tests/test_isolation.py`.
-- **CH-\***: confirm Supabase Realtime subscription fires; for FashionID, confirm `recompute_fashionid()` runs correctly.
-- **BP-\***: no product surface — manually verify against the row's acceptance criterion (re-run touched `.claude/commands/*.md` snippets literally, diff `.claude/agents/*.md` edits). If the row touches `scripts/py-*.sh`, `scripts/__tests__/*.sh`, or sibling shell tooling, run `pnpm test:scripts` (per BP-2). Standard gates still apply to changed scripts/config.
+```bash
+TASK_PREFIX="$(echo "$ARGUMENTS" | cut -d- -f1)"
+TASK_GATE="$(bash .claude/ritual/scripts/ritual-config.sh prefix.task_specific "$TASK_PREFIX")"
+if [ -n "$TASK_GATE" ]; then
+  eval "$TASK_GATE"
+fi
+```
+
+If empty, no task-specific gate runs. Projects define per-prefix gate commands in `ritual.config.yaml` under `gates.task_specific.by_prefix` — typically things like database-migration smoke tests, auth flow probes, screenshot diffs against the prototype, agent trace assertions, etc.
 
 ## Emit artifacts for downstream rituals
 
 Drop machine-readable artifacts under `.taskstate/artifacts/<ID>/` (gitignored):
 
-- `coverage.json` — merged coverage (`pnpm test -- --coverage --coverageReporters=json-summary` for JS/TS; `pytest --cov --cov-report=json` for Python; `go test -coverprofile` + `go tool cover -func | tail -1` for Go). Include `{ "lines_pct": <number>, "per_package": {...} }`. Record the gap if <80% — reviewer decides blocking. **Omit entirely when `LIGHT=1`**.
-- `screenshots/` — for **LI-\*** and **CH-\***, Playwright mobile-viewport PNGs keyed by component/page; one per screen touched.
-- `gate-summary.json` — `{ "light": <bool>, "format": …, "lint": …, "typecheck": …, "tests": …, "build": …, "task_specific": … }` where each gate is `"pass" | "fail" | "skip"` with a short message. Skipped gates under light mode carry `"reason": "light mode — no code changed"`; pre-existing `skip` semantics (e.g. `py:test` without venv) unchanged with their own reasons.
+- `coverage.json` — merged coverage from the project's test runner. Include `{ "lines_pct": <number>, "per_package": {...} }`. Record the gap if below the project's coverage target — reviewer decides blocking. **Omit entirely when `LIGHT=1`**.
+- `screenshots/` — for UX-prefixed tasks, viewport PNGs keyed by component/page; one per screen touched.
+- `gate-summary.json` — `{ "light": <bool>, "format": …, "lint": …, "typecheck": …, "tests": …, "build": …, "task_specific": … }` where each gate is `"pass" | "fail" | "skip"` with a short message. Skipped gates under light mode carry `"reason": "light mode — no code changed"`; pre-existing `skip` semantics (e.g. test runner without venv) unchanged with their own reasons.
 
 ## Output
 
 ```
 ### Check results — <ID>
 
-Mode: full | light (diff touched only markdown/json/yaml — heavy gates skipped per ADR 0019)
+Mode: full | light (diff touched only markdown/json/yaml — heavy gates skipped)
 
 | Gate | Status |
 |------|--------|
-| Format | ✓ / ✗ |
-| Lint | ✓ / ✗ |
-| Typecheck | ✓ / ✗ / — (skipped: light mode) |
-| Tests | ✓ / ✗ (<n passed / <n failed>) / — (skipped: light mode) |
-| Build | ✓ / ✗ / — (skipped: light mode) |
-| Task-specific | ✓ / ✗ |
+| Format | pass / fail |
+| Lint | pass / fail |
+| Typecheck | pass / fail / skip (light mode) |
+| Tests | pass / fail (<n passed / <n failed>) / skip (light mode) |
+| Build | pass / fail / skip (light mode) |
+| Task-specific | pass / fail |
 
-<If any ✗: detail the failure and whether it's safe to proceed to /review, or needs more work.>
+<If any fail: detail the failure and whether it's safe to proceed to /review, or needs more work.>
 ```
 
 ## Never

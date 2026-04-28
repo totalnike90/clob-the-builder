@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
-# PostToolUse:(Edit|Write|MultiEdit) — if the edit touched the agent, chat,
-# or listing code, remind the model about the §9.3/§9.4 non-negotiable rules.
+# PostToolUse:(Edit|Write|MultiEdit) — when an edit touches a path that the
+# project lists as risky in `hooks.remind_paths`, surface the project's
+# non-negotiable rules from `.claude/ritual/reviewer.project.md`.
 #
 # This never blocks. It only injects context. Exits 0 with reminder on
 # stderr when relevant, or silently 0 otherwise.
+#
+# Configure which paths trigger the reminder via `hooks.remind_paths` in
+# `ritual.config.yaml` (a YAML list of glob patterns, e.g. ["apps/auth/**",
+# "supabase/migrations/**"]). If unset, this hook is a silent no-op.
 
 set -euo pipefail
 
@@ -17,19 +22,28 @@ fi
 
 [ -z "$path" ] && exit 0
 
-# Only remind when we hit risky zones.
-case "$path" in
-  */apps/agent/*|*/apps/api/*/chat/*|*/apps/web/*/chat/*|*/apps/web/*/listing/*|*/supabase/migrations/*)
-    cat >&2 <<'REMINDER'
-— non-negotiable rules reminder (CLAUDE.md / PRD §9.3 + §9.4) —
-• Buyer identity isolation: never leak one buyer's name/handle across conversations.
-• Cross-item isolation: retrieval must filter by listing_id; no shared embeddings across listings.
-• Offline block: agent must not transact without seller takeover when mode=buffer and offline.
-• show_buy_now: only when seller offline + listing active + price set.
-• 7-day return: hardcoded, no seller override.
-• RLS on every new table. Service-role key server-side only.
-REMINDER
-    ;;
-esac
+# Resolve risky path globs from config. ritual-config.sh returns a space-
+# separated list; empty means "no risky paths configured" -> silent no-op.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+remind_paths="$(bash "$SCRIPT_DIR/../scripts/ritual-config.sh" get hooks.remind_paths 2>/dev/null || true)"
+[ -z "$remind_paths" ] && exit 0
+
+# Match the path against any configured glob. Bash's `case` handles globs
+# natively; we feed each pattern in turn.
+matched=""
+for pattern in $remind_paths; do
+  case "$path" in
+    $pattern) matched="yes"; break ;;
+  esac
+done
+[ -z "$matched" ] && exit 0
+
+# Surface the project's non-negotiables from the reviewer rules file.
+RULES_FILE="$SCRIPT_DIR/../../reviewer.project.md"
+if [ -f "$RULES_FILE" ]; then
+  echo "— non-negotiable rules reminder (.claude/ritual/reviewer.project.md) —" >&2
+  # Print just the level-3 rule headers so the reminder stays compact.
+  grep -E '^### ' "$RULES_FILE" >&2 || true
+fi
 
 exit 0

@@ -3,11 +3,18 @@ description: Audit ritual state for drift across MASTERPLAN, sidecars, worktrees
 argument-hint: [--fix]
 ---
 
-You are running a state-drift audit per [ADR 0036](../../decisions/0036-state-doctor.md). The ritual splits canonical state across `MASTERPLAN.md`, `.taskstate/<ID>.json` sidecars (in main checkout AND each active worktree), `.worktrees/<id>/`, `task/*` branches, and `main`. These can drift silently — `/doctor` reads them all, cross-checks the invariants, and prints findings with recovery hints.
+You are running a state-drift audit. The ritual splits canonical state across `MASTERPLAN.md`, `.taskstate/<ID>.json` sidecars (in main checkout AND each active worktree), `.worktrees/<id>/`, `task/*` branches, and `main`. These can drift silently — `/doctor` reads them all, cross-checks the invariants, and prints findings with recovery hints.
 
 **Read-only by default.** `--fix` runs the same audit and then prompts the operator to apply each finding's recovery action interactively. No automatic destructive operations.
 
-This command does **not** modify MASTERPLAN row status symbols on its own — that remains the manual `scripts/sync-masterplan-status.py` per [ADR 0030](../../decisions/0030-manual-masterplan-status-sync.md). `/doctor --fix` will offer to invoke that script when symbol drift is detected, but only after the operator confirms.
+This command does **not** modify MASTERPLAN row status symbols on its own — that remains a manual operation via `scripts/sync-masterplan-status.py`. `/doctor --fix` will offer to invoke that script when symbol drift is detected, but only after the operator confirms.
+
+0. **Empty-prefix gate.** If `ritual.config.yaml` has no `prefixes:` configured, stop with: *"Run `/plan-init <PRD-PATH>` first. The ritual needs a master plan before tasks can be picked."* Check via:
+   ```bash
+   if ! bash .claude/ritual/scripts/ritual-config.sh has-prefixes; then
+     echo "Run /plan-init <PRD-PATH> first."; exit 1
+   fi
+   ```
 
 ## Modes
 
@@ -24,7 +31,7 @@ Run from the repo root or any worktree — the script resolves the repo via `git
 For every task ID surfaced from MASTERPLAN, `.taskstate/`, `.worktrees/`, or `task/*` branches:
 
 1. **MASTERPLAN row symbol matches sidecar status** — the trailing `Status` cell in MASTERPLAN, last refreshed by `scripts/sync-masterplan-status.py`, must agree with `.taskstate/<ID>.json` (worktree sidecar wins when a worktree is active).
-2. **Sidecar is tracked in git** — untracked `.taskstate/<ID>.json` means `/plan-next` and the ritual see it but `git status` does not. F-21/F-22/F-23 anti-pattern.
+2. **Sidecar is tracked in git** — untracked `.taskstate/<ID>.json` means `/plan-next` and the ritual see it but `git status` does not.
 3. **In-flight tasks have a worktree + branch** — if sidecar is `in-progress | built | walked | reviewed` (lattice per [ADR 0037](../../decisions/0037-walk-before-gates-iterative.md)), both must exist.
 4. **Terminal sidecar implies a real ship commit on main** — `shipped | patched | blitzed` must trace to a commit subject `<ID>: <subject>` or `chore: ship <ID>` or a body trailer `Task: <ID>` on a non-intermediate commit.
 5. **Stranded in-flight tasks** — worktree at `walked`/`reviewed` while main sidecar still `todo` and no ship on main → operator forgot `/check`/`/review`/`/ship`.
@@ -34,7 +41,7 @@ Plus global checks (only when invoked from `main`):
 
 7. **Untracked sidecars** — `.taskstate/*.json` not in `git ls-files`.
 8. **Untracked decision drafts** — `decisions/*.md` not in `git ls-files`.
-9. **Dirty product code on main** — modifications under `apps/`, `packages/`, `supabase/`, or `scripts/` without a Task: trailer route.
+9. **Dirty product code on main** — modifications under project source paths (configurable in `ritual.config.yaml` if needed) without a Task: trailer route.
 
 ## Steps
 
@@ -70,7 +77,7 @@ Apply per code:
 - **`untracked-sidecar`** — ask whether to (a) commit it now, (b) delete it, or (c) skip. On (a): ask for the rationale (scaffold vs. recovered) and stage `git add .taskstate/<ID>.json`. Defer the actual commit to the end so multiple findings batch into one chore commit.
 - **`untracked-decision`** — same shape: commit (with the operator providing an ADR number / chore subject) vs. delete vs. skip.
 - **`dirty-product-code-on-main`** — never auto-fix. Print the path and the file's diff against HEAD; ask the operator whether to (a) revert with `git checkout -- <path>`, (b) leave it (likely they'll move it into a worktree manually), or (c) skip.
-- **`masterplan-symbol-drift`** — offer to run `python3 scripts/sync-masterplan-status.py` once at the end (collect into a single-pass refresh). Per [ADR 0030](../../decisions/0030-manual-masterplan-status-sync.md), this is a manual operation, so prompt explicitly.
+- **`masterplan-symbol-drift`** — offer to run `python3 scripts/sync-masterplan-status.py` once at the end (collect into a single-pass refresh). This is a manual operation, so prompt explicitly.
 - **`stranded-inflight`** — never auto-execute the next ritual step. Print the suggestion (`/walk <ID>` or `/ship <ID>`) and the worktree path; let the operator drive.
 - **`inflight-without-worktree`** — print suggested recovery (`/build --adopt <ID>` or roll back the sidecar). Do not execute.
 - **`orphaned-worktree`** — only safe action is `git worktree remove <path>`; ask before doing.
@@ -119,7 +126,7 @@ Outstanding (not auto-fixable):
 - Never run `git checkout --` or `rm` without operator confirmation per item.
 - Never invoke `/build --adopt`, `/walk`, or `/ship` from inside `/doctor`. Surface the suggestion only.
 - Never modify a sidecar status field directly. The ritual writes status; `/doctor` only flags drift.
-- Never modify MASTERPLAN.md outside of running `scripts/sync-masterplan-status.py` (and only with operator consent per ADR-0030).
+- Never modify MASTERPLAN.md outside of running `scripts/sync-masterplan-status.py` (and only with operator consent).
 - Never delete a worktree without running `git worktree list` first to confirm nothing in-flight is held there.
 
 ## Exit codes
