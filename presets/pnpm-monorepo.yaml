@@ -1,0 +1,23 @@
+# Preset: pnpm monorepo (turborepo, pnpm workspaces)
+# Merged into ritual.config.yaml at install time.
+
+gates:
+  format:
+    cmd: "pnpm format:check"
+    light_eligible: false
+  lint:
+    cmd: "pnpm lint"
+    light_eligible: false
+  typecheck:
+    cmd: "pnpm typecheck"
+    light_eligible: true
+  test:
+    cmd: "pnpm test"
+    light_eligible: true
+  build:
+    cmd: "pnpm build"
+    light_eligible: true
+
+walk:
+  dev_server_cmd: "pnpm dev"
+  default_port: 3000

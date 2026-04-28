@@ -1,0 +1,41 @@
+<!-- ritual:start (claude-the-builder v{{RITUAL_VERSION}}) -->
+
+## The ritual
+
+This project uses [claude-the-builder](https://github.com/jerryneoneo/claude-the-builder) v{{RITUAL_VERSION}}. Configuration in `ritual.config.yaml`.
+
+```
+/plan-init <PRD-PATH>   # one-time: scaffold MASTERPLAN.md from your PRD
+/plan-next              # pick the next unblocked task
+/build <ID>             # implement on an isolated worktree
+/walk <ID>              # human walks through the change (UX prefixes only)
+/check <ID>             # quality gates: format, lint, typecheck, test, build
+/review <ID>            # independent reviewer subagent against the PRD
+/ship <ID>              # squash-merge under a lock; one task = one squash commit
+```
+
+Plus orchestrators (`/auto`, `/batch`, `/blitz`), audit (`/doctor`), fast-paths (`/patch`).
+
+### Authoritative sources
+
+- **PRD:** `{{PRD_PATH}}` — read the relevant section before building.
+- **Design system:** `{{DESIGN_SYSTEM_PATH}}` — do not invent colors, radii, or components.
+- **MASTERPLAN.md** — task index. Per-task source-of-truth is `.taskstate/<ID>.json`.
+- **Reviewer rules:** `.claude/ritual/reviewer.project.md` — project non-negotiables.
+
+### Don't
+
+- Bypass hooks (`--no-verify`) — fix the failure
+- Use `git add -A` or `git add .` — stage specific files
+- Use `--amend` — always create new commits
+- Commit on `main` — the `guard-main` hook blocks this; work happens in `.worktrees/<id>/`
+- Skip `/walk` for UX tasks — human-in-the-loop is mandatory before gates run
+
+### Do
+
+- Read the PRD section listed in the task's `PRD-refs` column before coding
+- Update `.taskstate/<ID>.json` as you progress through the status lattice
+- Use the `Task: <ID>` commit trailer (enforced by `/ship`)
+- Iterate `/build`-then-`/walk` until visually satisfied before `/check` and `/review`
+
+<!-- ritual:end -->

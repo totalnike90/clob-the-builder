@@ -1,0 +1,23 @@
+# Preset: Python with uv (modern Python package manager)
+# Merged into ritual.config.yaml at install time.
+
+gates:
+  format:
+    cmd: "uv run ruff format --check ."
+    light_eligible: false
+  lint:
+    cmd: "uv run ruff check ."
+    light_eligible: false
+  typecheck:
+    cmd: "uv run mypy ."
+    light_eligible: true
+  test:
+    cmd: "uv run pytest"
+    light_eligible: true
+  build:
+    cmd: "uv build"
+    light_eligible: true
+
+walk:
+  dev_server_cmd: "uv run python -m http.server"
+  default_port: 8000

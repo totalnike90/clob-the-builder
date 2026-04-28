@@ -1,0 +1,23 @@
+# Preset: Go modules
+# Merged into ritual.config.yaml at install time.
+
+gates:
+  format:
+    cmd: "test -z \"$(gofmt -l .)\""
+    light_eligible: false
+  lint:
+    cmd: "go vet ./..."
+    light_eligible: false
+  typecheck:
+    cmd: "go build ./..."
+    light_eligible: true
+  test:
+    cmd: "go test ./..."
+    light_eligible: true
+  build:
+    cmd: "go build ./..."
+    light_eligible: true
+
+walk:
+  dev_server_cmd: "go run ./cmd/server"
+  default_port: 8080

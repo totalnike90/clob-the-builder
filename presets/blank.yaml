@@ -1,0 +1,23 @@
+# Preset: blank (no opinions — wire up gate commands manually post-install)
+# Merged into ritual.config.yaml at install time.
+
+gates:
+  format:
+    cmd: ""
+    light_eligible: false
+  lint:
+    cmd: ""
+    light_eligible: false
+  typecheck:
+    cmd: ""
+    light_eligible: true
+  test:
+    cmd: ""
+    light_eligible: true
+  build:
+    cmd: ""
+    light_eligible: true
+
+walk:
+  dev_server_cmd: ""
+  default_port: 3000

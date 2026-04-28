@@ -1,0 +1,23 @@
+# Preset: single npm package (Node.js)
+# Merged into ritual.config.yaml at install time.
+
+gates:
+  format:
+    cmd: "npm run format:check"
+    light_eligible: false
+  lint:
+    cmd: "npm run lint"
+    light_eligible: false
+  typecheck:
+    cmd: "npm run typecheck"
+    light_eligible: true
+  test:
+    cmd: "npm test"
+    light_eligible: true
+  build:
+    cmd: "npm run build"
+    light_eligible: true
+
+walk:
+  dev_server_cmd: "npm run dev"
+  default_port: 3000
