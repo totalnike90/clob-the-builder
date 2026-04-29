@@ -335,4 +335,4 @@ The ritual ships with 9 ADRs in `decisions/` explaining the rationale for the ma
 
 ## License
 
-TBD — likely MIT.
+[MIT](LICENSE) — see `LICENSE` for the full text.

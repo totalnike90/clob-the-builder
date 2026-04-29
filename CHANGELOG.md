@@ -19,6 +19,7 @@ Initial release.
 - 9 ADRs documenting the ritual mechanism (0005, 0006, 0007, 0021, 0024, 0031, 0032, 0034, 0037).
 - Greenfield Next.js example with a seed PRD.
 - 9-test bats suite for install/uninstall idempotency.
+- MIT License.
 
 ### Verified (v0.1.0 release gates)
 
