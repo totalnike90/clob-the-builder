@@ -17,3 +17,21 @@ examples/*/.next/
 examples/*/.taskstate/
 examples/*/.worktrees/
 examples/*/.claude/ritual/
+
+# Safety net: install.sh-rendered project files must never be committed
+# into the clob-the-builder source repo. Belt-and-braces against accidental
+# `bash install.sh` runs from the source directory.
+/MASTERPLAN.md
+/BUILDLOG.md
+/FOLLOWUPS.md
+/ritual.config.yaml
+/CLAUDE.md
+/.taskstate/
+/.worktrees/
+/.claude/ritual/
+/.claude/settings.json
+/.claude/commands
+/.claude/agents
+/.claude/hooks
+/package.json
+/decisions/0001-adopt-ritual.md
