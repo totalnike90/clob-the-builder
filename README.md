@@ -1,16 +1,24 @@
-# claude-the-builder
+# clob-the-builder
 
 A portable, opinionated **task-execution ritual for Claude Code projects**: slash commands, sidecar state, gated quality checks, and a human-in-the-loop walkthrough. Packaged so any new repo can adopt the discipline in two commands.
 
 ```bash
-git clone https://github.com/totalnike90/claude-the-builder.git ~/code/claude-the-builder
+git clone https://github.com/totalnike90/clob-the-builder.git ~/code/clob-the-builder
 cd <your-project>
-bash ~/code/claude-the-builder/install.sh
+bash ~/code/clob-the-builder/install.sh
 # then, inside Claude Code:
 /plan-init docs/PRD.md
 ```
 
 That's it. You're now running the ritual.
+
+---
+
+## About
+
+Built by **Jerry Neo** ([@totalnike90](https://github.com/totalnike90)).
+
+After more than 1000 AI-assisted tasks on 4 production builds, I kept watching discipline drift faster than capability scaled. `clob-the-builder` is the smallest set of constraints I found that keeps the work coherent, reviewable, and revertable. Universal core extracted; project specifics stay in your repo.
 
 ---
 
@@ -38,7 +46,7 @@ Plus orchestrators (`/auto`, `/batch`, `/blitz`), audit (`/doctor`), fast-path (
 
 ## Why
 
-Most AI-assisted coding workflows fall apart on the same things: untracked work, drift between intent and implementation, scope creep, no audit trail, broken reverts. `claude-the-builder` enforces:
+Most AI-assisted coding workflows fall apart on the same things: untracked work, drift between intent and implementation, scope creep, no audit trail, broken reverts. `clob-the-builder` enforces:
 
 - **One task = one branch = one worktree = one squash commit.** Reverts are always 1:1.
 - **Sidecar state.** `.taskstate/<ID>.json` is the source of truth. Status lattice: `todo < planned < in-progress < built < walked < reviewed < shipped`.
@@ -287,10 +295,10 @@ This means you can swap your test runner from `npm test` to `vitest run` by edit
 
 ## FAQ
 
-**Why a separate `claude-the-builder` repo? Why not just copy the files?**
+**Why a separate `clob-the-builder` repo? Why not just copy the files?**
 Because the ritual evolves. Pulling upstream improvements is a `git pull` away from re-running `install.sh`. Copying drifts.
 
-**Can I retrofit `claude-the-builder` into an existing project?**
+**Can I retrofit `clob-the-builder` into an existing project?**
 Yes. Run `bash install.sh` from the project root; it detects existing `MASTERPLAN.md` / `.taskstate/` / `.claude/commands/` and renders a `ritual.config.yaml.proposed` for you to inspect. Re-run with `--apply` once the proposed config looks right.
 
 **What if my project doesn't fit any preset?**
@@ -306,10 +314,10 @@ For prefixes where `ux: false` in `ritual.config.yaml`, `/walk` auto-skips with 
 Yes. Drop your custom `.md` command files into `.claude/commands/` directly (not the symlinked `ritual/` dir). They live alongside the installed ones.
 
 **How do I uninstall?**
-`bash <claude-the-builder>/uninstall.sh` from your project root. It removes `.claude/ritual/`, the symlinks, and the ritual block from `CLAUDE.md` and `.claude/settings.json`. It **preserves** project history: `MASTERPLAN.md`, `BUILDLOG.md`, `FOLLOWUPS.md`, `.taskstate/`, `ritual.config.yaml`, `decisions/0001-adopt-ritual.md`.
+`bash <clob-the-builder>/uninstall.sh` from your project root. It removes `.claude/ritual/`, the symlinks, and the ritual block from `CLAUDE.md` and `.claude/settings.json`. It **preserves** project history: `MASTERPLAN.md`, `BUILDLOG.md`, `FOLLOWUPS.md`, `.taskstate/`, `ritual.config.yaml`, `decisions/0001-adopt-ritual.md`.
 
 **What's the v0.2 roadmap?**
-Tracked as issues at https://github.com/totalnike90/claude-the-builder/issues. Core themes: walk preflight hooks for env-heavy projects, blitz audit stubs, auto-fix budget surfacing, multi-attempt walk reporting, and a one-page ritual overview.
+Tracked as issues at https://github.com/totalnike90/clob-the-builder/issues. Core themes: walk preflight hooks for env-heavy projects, blitz audit stubs, auto-fix budget surfacing, multi-attempt walk reporting, and a one-page ritual overview.
 
 ---
 

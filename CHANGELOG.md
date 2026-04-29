@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to `claude-the-builder` are documented here.
+All notable changes to `clob-the-builder` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: [SemVer](https://semver.org/).
 
 ## [0.1.0] — 2026-04-29

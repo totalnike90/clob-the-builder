@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""State-drift auditor for the claude-the-builder ritual.
+"""State-drift auditor for the clob-the-builder ritual.
 
 Reads MASTERPLAN.md, `.taskstate/*.json` sidecars (both `main` and any active
 worktree branches), `git worktree list`, branch refs, `git log`, and

@@ -1,11 +1,11 @@
-# ADR 0001 — Adopt claude-the-builder ritual
+# ADR 0001 — Adopt clob-the-builder ritual
 
 **Date:** {{INSTALL_DATE}}
 **Status:** Accepted
 
 ## Context
 
-This project adopts the task-execution ritual from [claude-the-builder](https://github.com/jerryneoneo/claude-the-builder) v{{RITUAL_VERSION}}.
+This project adopts the task-execution ritual from [clob-the-builder](https://github.com/totalnike90/clob-the-builder) v{{RITUAL_VERSION}}.
 
 Rationale: AI-assisted development without discipline drifts. Untracked work, scope creep, broken reverts, no audit trail. The ritual enforces:
 
@@ -17,12 +17,12 @@ Rationale: AI-assisted development without discipline drifts. Untracked work, sc
 
 ## Decision
 
-Install `claude-the-builder` v{{RITUAL_VERSION}} via `bash install.sh`. Use the slash commands in `.claude/commands/` for all task work. Track state in `.taskstate/<ID>.json`. Author `MASTERPLAN.md` via `/plan-init <PRD-PATH>` before running `/plan-next`.
+Install `clob-the-builder` v{{RITUAL_VERSION}} via `bash install.sh`. Use the slash commands in `.claude/commands/` for all task work. Track state in `.taskstate/<ID>.json`. Author `MASTERPLAN.md` via `/plan-init <PRD-PATH>` before running `/plan-next`.
 
 ## Consequences
 
 - Every code change runs through the ritual.
 - `MASTERPLAN.md`, `BUILDLOG.md`, `FOLLOWUPS.md`, `.taskstate/`, `.worktrees/` are now project files.
 - The reviewer agent enforces project non-negotiables from `.claude/ritual/reviewer.project.md` (generated from `reviewer.non_negotiables` in `ritual.config.yaml`).
-- See ADRs 0005, 0006, 0007, 0021, 0024, 0031, 0032, 0034, 0037 in `.claude/ritual/decisions/` (or [upstream](https://github.com/jerryneoneo/claude-the-builder/tree/main/decisions)) for the rationale behind each ritual mechanism.
+- See ADRs 0005, 0006, 0007, 0021, 0024, 0031, 0032, 0034, 0037 in `.claude/ritual/decisions/` (or [upstream](https://github.com/totalnike90/clob-the-builder/tree/main/decisions)) for the rationale behind each ritual mechanism.
 - Project-specific decisions get their own ADRs starting at 0002.

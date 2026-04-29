@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ritual-config.sh — read values from ritual.config.yaml at runtime.
 #
-# Purpose: the only YAML I/O point in claude-the-builder. Slash commands
+# Purpose: the only YAML I/O point in clob-the-builder. Slash commands
 # shell out here instead of parsing YAML themselves.
 #
 # Backend: prefers `yq` (any v3 or v4) if installed; falls back to

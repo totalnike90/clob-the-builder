@@ -1,20 +1,20 @@
 # Greenfield Next.js Example
 
-A minimal Next.js skeleton with a seed `docs/PRD.md`, used to demonstrate `claude-the-builder` end-to-end.
+A minimal Next.js skeleton with a seed `docs/PRD.md`, used to demonstrate `clob-the-builder` end-to-end.
 
 ## Run the demo
 
 ```bash
-# 1. Clone claude-the-builder somewhere persistent.
-git clone https://github.com/jerryneoneo/claude-the-builder.git ~/code/claude-the-builder
+# 1. Clone clob-the-builder somewhere persistent.
+git clone https://github.com/totalnike90/clob-the-builder.git ~/code/clob-the-builder
 
 # 2. Copy this example to a fresh location and turn it into a git repo.
-cp -R /path/to/claude-the-builder/examples/greenfield-nextjs ~/my-test-project
+cp -R /path/to/clob-the-builder/examples/greenfield-nextjs ~/my-test-project
 cd ~/my-test-project
-git init && git add . && git commit -m "chore: init from claude-the-builder example"
+git init && git add . && git commit -m "chore: init from clob-the-builder example"
 
 # 3. Install the ritual.
-bash ~/code/claude-the-builder/install.sh
+bash ~/code/clob-the-builder/install.sh
 
 # 4. Open Claude Code in this repo, then run:
 /plan-init docs/PRD.md
@@ -39,5 +39,5 @@ bash ~/code/claude-the-builder/install.sh
 
 Two purposes:
 
-1. **Documentation by example** — readers can see exactly what `claude-the-builder` adds to a clean project.
+1. **Documentation by example** — readers can see exactly what `clob-the-builder` adds to a clean project.
 2. **Regression fixture** — `tests/install.bats` runs `install.sh` against this skeleton and asserts the expected files appear.

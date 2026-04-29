@@ -1,6 +1,6 @@
 # Greenfield Next.js Example — PRD
 
-A minimal product spec used to demonstrate `claude-the-builder`'s `/plan-init`
+A minimal product spec used to demonstrate `clob-the-builder`'s `/plan-init`
 flow on a brand-new Next.js project. Replace this file with your real PRD
 when you copy this skeleton into your own repo.
 
@@ -8,7 +8,7 @@ when you copy this skeleton into your own repo.
 
 Build a small, fast greeter app that asks for a name and personalises the
 greeting. The app demonstrates the full ritual end-to-end on a tiny
-codebase so contributors can validate `claude-the-builder` install →
+codebase so contributors can validate `clob-the-builder` install →
 `/plan-init` → `/plan-next` → `/build` → `/walk` → `/check` → `/review` →
 `/ship` without the noise of a real product.
 
@@ -74,7 +74,7 @@ Two roles:
 
 The greenfield example is "shipped" when:
 
-- `bash claude-the-builder/install.sh` completes without errors.
+- `bash clob-the-builder/install.sh` completes without errors.
 - `/plan-init docs/PRD.md` populates MASTERPLAN.md with at least 5 tasks.
 - `/plan-next` returns the first task without errors.
 - The project's `prefixes:` block in `ritual.config.yaml` has at least 2

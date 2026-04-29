@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# install.sh — install claude-the-builder ritual into the current project.
+# install.sh — install clob-the-builder ritual into the current project.
 #
 # Usage:
-#   bash /path/to/claude-the-builder/install.sh             # interactive
-#   bash /path/to/claude-the-builder/install.sh --apply     # retrofit second pass
+#   bash /path/to/clob-the-builder/install.sh             # interactive
+#   bash /path/to/clob-the-builder/install.sh --apply     # retrofit second pass
 #
 # Modes (auto-detected):
 #   greenfield  — clean repo, no MASTERPLAN.md / .taskstate. Full install.
@@ -20,11 +20,11 @@
 
 set -euo pipefail
 
-# ---------- locate claude-the-builder source ----------
+# ---------- locate clob-the-builder source ----------
 
 script_path="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 SRC="$(dirname "$script_path")"
-[ -d "$SRC/core" ] || { echo "install.sh: cannot locate claude-the-builder core/ alongside the script." >&2; exit 1; }
+[ -d "$SRC/core" ] || { echo "install.sh: cannot locate clob-the-builder core/ alongside the script." >&2; exit 1; }
 
 VERSION="$(cat "$SRC/VERSION")"
 PROJECT_DIR="$PWD"
@@ -195,8 +195,8 @@ HAS_RITUAL_FILES=0
 [ -f "$PROJECT_DIR/BUILDLOG.md" ]      && HAS_RITUAL_FILES=1
 
 if [ "$ALREADY_INSTALLED" = 1 ]; then
-  log "claude-the-builder v$(cat "$PROJECT_DIR/.claude/ritual/.version") is already installed in this project."
-  log "To upgrade: re-run after updating your local clone of claude-the-builder."
+  log "clob-the-builder v$(cat "$PROJECT_DIR/.claude/ritual/.version") is already installed in this project."
+  log "To upgrade: re-run after updating your local clone of clob-the-builder."
   log "To uninstall: bash $SRC/uninstall.sh"
   exit 0
 fi
@@ -270,7 +270,7 @@ fi
 
 # ---------- write to project ----------
 
-log "Installing claude-the-builder v$VERSION into $PROJECT_DIR"
+log "Installing clob-the-builder v$VERSION into $PROJECT_DIR"
 
 # 1. Copy core/ → .claude/ritual/.
 mkdir -p "$PROJECT_DIR/.claude"
@@ -361,7 +361,7 @@ echo "$VERSION" > "$PROJECT_DIR/.claude/ritual/.version"
 
 cat <<NEXT
 
-Done. claude-the-builder v$VERSION installed in $PROJECT_DIR.
+Done. clob-the-builder v$VERSION installed in $PROJECT_DIR.
 
 Next step:
   Open Claude Code in this repo and run:

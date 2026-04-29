@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# uninstall.sh — remove claude-the-builder ritual from the current project.
+# uninstall.sh — remove clob-the-builder ritual from the current project.
 #
 # Removes:
 #   .claude/ritual/                          (the installed core)
@@ -86,7 +86,7 @@ fi
 
 cat <<DONE
 
-claude-the-builder uninstalled. Preserved (project history):
+clob-the-builder uninstalled. Preserved (project history):
   MASTERPLAN.md, BUILDLOG.md, FOLLOWUPS.md
   ritual.config.yaml
   .taskstate/, .worktrees/

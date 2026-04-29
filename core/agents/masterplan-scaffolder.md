@@ -1,6 +1,6 @@
 ---
 name: masterplan-scaffolder
-description: Reads a PRD and proposes a prefix taxonomy plus initial task list for claude-the-builder's MASTERPLAN.md. Called by /plan-init only. Returns structured JSON.
+description: Reads a PRD and proposes a prefix taxonomy plus initial task list for clob-the-builder's MASTERPLAN.md. Called by /plan-init only. Returns structured JSON.
 tools: Read, Grep, Glob
 model: sonnet
 ---

@@ -1,11 +1,11 @@
 #!/usr/bin/env bats
-# Tests for claude-the-builder install.sh / uninstall.sh.
+# Tests for clob-the-builder install.sh / uninstall.sh.
 #
 # Requires bats-core: brew install bats-core (macOS) or apt install bats (Linux).
 # Run from repo root: bats tests/install.bats
 
 setup() {
-  # Resolve the claude-the-builder source dir (this test file's grandparent).
+  # Resolve the clob-the-builder source dir (this test file's grandparent).
   CTB_SRC="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
   export CTB_SRC
 
