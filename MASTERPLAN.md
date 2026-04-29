@@ -1,9 +1,0 @@
-# vt — MASTERPLAN
-
-<!-- run `/plan-init <PRD-PATH>` to populate this file with proposed tasks and prefix taxonomy -->
-<!-- once scaffolded, this comment block is replaced with the task table below -->
-
-| Phase | ID | Task | Status | Deps | PRD-refs |
-|-------|----|------|--------|------|----------|
-
-<!-- scaffolded: pending -->

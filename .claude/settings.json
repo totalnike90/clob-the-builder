@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": []
-  },
-  "hooks": {
-    "PreToolUse": [],
-    "PostToolUse": []
-  }
-}
