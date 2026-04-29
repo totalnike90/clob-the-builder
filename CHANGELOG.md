@@ -5,7 +5,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning: 
 
 ## [0.1.0] — 2026-04-29
 
-Initial release. Extracted from the SALLY MVP (~140 shipped tasks of ritual maturation).
+Initial release.
 
 ### Added
 
@@ -22,7 +22,7 @@ Initial release. Extracted from the SALLY MVP (~140 shipped tasks of ritual matu
 
 ### Verified (v0.1.0 release gates)
 
-- Static analysis: zero SALLY/Moggle/legacy-stack tokens across `core/` + `templates/`.
+- Static analysis: zero coupling tokens to any donor project across `core/` + `templates/`.
 - Greenfield install creates 14 commands + 4 agents + 7 scripts + 2 hooks.
 - `prefixes:` ships empty so the empty-prefix preflight fires until `/plan-init` runs.
 - Re-running install detects already-installed and exits cleanly.

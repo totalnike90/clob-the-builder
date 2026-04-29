@@ -64,7 +64,7 @@ Bad:
 ## Rejected alternatives
 
 - **Keep MASTERPLAN authoritative, serialize rows via a deterministic formatter.** Prettier / editors will re-wrap tables on save; the conflict risk cannot be fully eliminated without custom tooling. Not worth the fight.
-- **Sibling-directory worktrees (`../sally-mvp-f4/`).** Breaks `../specs/` and `../design system/` relative references, fragments the turbo cache, and confuses the IDE's workspace. Rejected.
+- **Sibling-directory worktrees (`../<repo>-<id>/`).** Breaks any relative references (specs, design system) the project may use, fragments build caches, and confuses the IDE's workspace. Rejected.
 - **Contract-ready dependency state (`F-4*` meaning "can start against unmerged dep").** Adds a second status axis and a new failure mode where a task builds against a dep that later reshapes. Deferred until throughput actually proves gated on it.
 - **`BUILDLOG.d/<ID>.md` per-ship files.** Not needed while the ship lock serializes appends. Revisit if conflict pressure appears.
 - **Custom ship queue or job server.** Over-engineered for one builder. `flock` + `gh pr merge --auto` cover it.

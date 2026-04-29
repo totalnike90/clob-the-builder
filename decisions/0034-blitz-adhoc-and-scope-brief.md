@@ -50,7 +50,7 @@ If operator types intent, `/blitz` runs a deconfliction brief:
 
 1. Tokenize intent into keywords (lowercase, drop stopwords).
 2. Grep `MASTERPLAN.md` for top-N rows (default 5) matching any keyword in the subject column.
-3. Grep `../specs/SALLY-PRD-Tech-Spec.md` for top-N section headers (default 5) matching any keyword.
+3. Grep the project PRD (`paths.prd` in `ritual.config.yaml`) for top-N section headers (default 5) matching any keyword.
 4. Print briefing:
 
    ```

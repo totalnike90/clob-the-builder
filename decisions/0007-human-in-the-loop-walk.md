@@ -15,12 +15,12 @@ The v2 ritual (`/plan-next → /build → /check → /review → /ship`) has no 
 - `/review` dispatches a blinded reviewer subagent that reads the diff.
 - `/ship` squashes, merges, updates BUILDLOG.
 
-For SALLY specifically, two classes of failure cannot be caught by any of the above:
+Two classes of failure cannot be caught by any of the above:
 
-1. **Design-system and voice drift on user-facing surfaces (LI-\*, CH-\*).** Playwright asserts structural match; it does not tell us whether the copy reads as SALLY's voice, whether the emoji cadence is right, whether the pink/fluff balance feels correct, or whether the flow "feels women-first." A hex drift from `#8B5CF6` to `#8B5BFE` can pass structural diff.
-2. **Adversarial agent behavior (AG-\*).** §9.3 (buyer identity isolation) and §9.4 (offline transaction block) are non-negotiable rules the agent must enforce even under seller prompt-injection or buyer social engineering. A single synthetic test message in `/check` is not adversarial coverage; real probing requires a human trying to break the agent.
+1. **Design-system and voice drift on user-facing surfaces (UX prefixes).** Playwright asserts structural match; it does not tell us whether the copy reads with the project's intended voice, whether the spacing and tone feel right, or whether the flow matches the design intent. Subtle hex drift can pass structural diff.
+2. **Adversarial behaviour for safety-critical surfaces (e.g. agent / auth / payment prefixes).** Project non-negotiables (in `reviewer.project.md`) must hold even under prompt-injection, social engineering, or hostile inputs. A single synthetic test in `/check` is not adversarial coverage; real probing requires a human trying to break the surface.
 
-A secondary gap — `/review` was also light on security and code-quality depth. The ritual had no explicit `security-reviewer` trigger for AU-\*/AG-\*/payment tasks, no coverage assertion at review time, and no function/file-size checks despite those being in the global `~/.claude/rules/code-review.md`.
+A secondary gap — `/review` was also light on security and code-quality depth. The ritual had no explicit `security-reviewer` trigger for safety-critical prefixes, no coverage assertion at review time, and no function/file-size checks.
 
 ## Decision
 
@@ -31,8 +31,8 @@ New sidecar status sequence: `todo → in-progress → built → reviewed → wa
 - `/walk` is **mandatory** for task prefixes **LI-\***, **CH-\***, **AG-\***, **AU-\***.
 - For other prefixes (F-\*, SC-\*), `/walk` is a **no-op flip-through** — the sidecar moves `reviewed → walked` with a `walk_notes` entry of `{ step: "n/a — non-user-facing", result: "skip", … }`. The ritual still runs so `/ship` has a uniform precondition (`status: walked`) with no branching.
 - `/walk` runs **from inside the task's worktree** so the dev server exercises the task's branch, not `main`.
-- `/walk` reads the user-story IDs from the PRD refs, maps them to steps in `../docs/SALLY-User-Journeys.md`, prints a numbered checklist, and waits for Jerry's pass/fail/skip notes.
-- For AG-\*, the checklist appends **adversarial probes** derived from §9.3 and §9.4 verbatim (offline-request block, identity-reveal refusal, seller prompt-injection resistance).
+- `/walk` reads the user-story IDs from the PRD refs, maps them to journey steps (project-supplied path), prints a numbered checklist, and waits for the operator's pass/fail/skip notes.
+- For safety-critical prefixes, the checklist appends **adversarial probes** derived from `reviewer.project.md` (e.g. identity-isolation tests, offline-block tests, prompt-injection resistance).
 
 Results persist in `.taskstate/<ID>.json` under a new `walk_notes` array (one object per step, preserving attempt history across re-runs). `/ship` copies this array verbatim into the BUILDLOG entry so the durable human-judgment trail is greppable forever.
 
